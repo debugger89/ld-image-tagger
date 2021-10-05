@@ -2,6 +2,7 @@ import React from 'react';
 import ReactImageAnnotate from 'react-image-annotate';
 
 import TreeMenu from 'react-simple-tree-menu';
+import { v4 as uuidv4 } from 'uuid';
 
 import Box from '@mui/material/Box';
 import { Grid, Item, TextField, Button } from '@mui/material';
@@ -12,43 +13,24 @@ function AnnotatorMain(props) {
     '/Users/cdushmantha/Documents/code/github/LeopardDiary-PublicWeb/leopard-diary-webapp/src/assets/img/identified-leopards/YALA_NP'
   );
 
+  const [annotatorKey, setAnnotatorKey] = React.useState(uuidv4());
+
   const [folderHierarchy, setFolderHierarchy] = React.useState([]);
 
-  const treeData = [
+  const url = require('url');
+  const path = require('path');
+  const fs = require('fs');
+
+  const [annotatingImage, setAnnotatingImage] = React.useState([
     {
-      key: 'Team Confidential Letters',
-      label: 'Team Confidential Letters',
-      nodes: [
-        {
-          key: '2019',
-          label: '2019',
-          nodes: [
-            {
-              key: 'Malik_310.pdf',
-              label: 'Malik_310.pdf',
-            },
-            {
-              key: 'Srimalee_312.pdf',
-              label: 'Srimalee_312.pdf',
-            },
-          ],
-        },
-        {
-          key: '2020',
-          label: '2020',
-          nodes: [
-            {
-              key: 'Srimalee_312.pdf',
-              label: 'Srimalee_312.pdf',
-            },
-          ],
-        },
-      ],
+      src: url.pathToFileURL('src/renderer/img/placeholder.jpeg').toString(),
+      name: 'Image 1',
+      regions: [],
     },
-  ];
+  ]);
 
   function jsonBuilder(buildArr, currentNode) {
-    console.log('%%%%%%%% RECURSION %%%%%%%%');
+    // console.log('%%%%%%%% RECURSION %%%%%%%%');
 
     currentNode.forEach(function myFunction(item, index) {
       var addItem = {};
@@ -56,12 +38,14 @@ function AnnotatorMain(props) {
       if (item.name.startsWith('.')) {
         return;
       }
-      console.log('*****ITERATION*****');
-      console.log('*** ' + item.name);
+      // console.log('*****ITERATION*****');
+      // console.log('*** ' + item.name);
       addItem.key = item.name;
       addItem.label = item.name;
+      addItem.path = item.path;
+      addItem.type = item.type;
       if (item.children && item.children != []) {
-        console.log(item.name + ' *** has children');
+        // console.log(item.name + ' *** has children');
 
         addItem.nodes = [];
 
@@ -81,10 +65,30 @@ function AnnotatorMain(props) {
   function getDirContent() {
     const dree = require('dree');
     var tree = dree.scan(rootFolderPath);
-    console.log(JSON.stringify(tree));
+    // console.log(JSON.stringify(tree));
 
     setFolderHierarchy(jsonBuilder([], [tree]));
   }
+
+  function getImageVisibleName(imgPath) {
+    return path.basename(path.dirname(imgPath)) + '/' + path.basename(imgPath);
+  }
+
+  function onSaveAnnot(data) {
+    if (data.images.length > 0) {
+      let imageData = data.images[0];
+      let saveFolder = path.dirname(imageData.src);
+      console.log('Saving file in : ' + saveFolder);
+      fs.writeFileSync(
+        url.fileURLToPath(saveFolder + '/annotations.json'),
+        JSON.stringify(imageData)
+      );
+    }
+  }
+
+  React.useEffect(() => {
+    console.log(JSON.stringify(annotatingImage));
+  });
 
   return (
     <>
@@ -114,23 +118,39 @@ function AnnotatorMain(props) {
                 </Button>
               </div>
               <div className="tree-container">
-                <TreeMenu data={folderHierarchy} hasSearch={false} />
+                <TreeMenu
+                  data={folderHierarchy}
+                  hasSearch={false}
+                  onClickItem={({ key, label, ...props }) => {
+                    if (props.type === 'file') {
+                      var fileURL = url.pathToFileURL(props.path).toString();
+                      console.log('Selected path : ' + fileURL);
+                      // setSelectedImageURL(fileURL);
+                      setAnnotatingImage([
+                        {
+                          src: fileURL,
+                          name: getImageVisibleName(props.path),
+                          regions: [],
+                        },
+                      ]);
+
+                      setAnnotatorKey(uuidv4());
+                    }
+                  }}
+                />
               </div>
             </Box>
           </Grid>
           <Grid item xs={9}>
             <ReactImageAnnotate
+              key={annotatorKey}
               labelImages
               className="annot-container"
-              regionClsList={['Alpha', 'Beta', 'Charlie', 'Delta']}
-              regionTagList={['tag1', 'tag2', 'tag3']}
-              images={[
-                {
-                  src: 'https://placekitten.com/408/287',
-                  name: 'Image 1',
-                  regions: [],
-                },
-              ]}
+              regionClsList={['front', 'left', 'right']}
+              // regionTagList={['front', 'left', 'right']}
+              images={annotatingImage}
+              enabledTools={['select', 'create-box', 'create-polygon']}
+              onExit={onSaveAnnot}
             />
           </Grid>
         </Grid>

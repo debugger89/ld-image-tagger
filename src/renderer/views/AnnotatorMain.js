@@ -86,6 +86,17 @@ function AnnotatorMain(props) {
     }
   }
 
+  function saveElementByXpath() {
+    var element = document.evaluate(
+      "//div[@class='fullscreen']/div[@tabindex='-1']//div[contains(@class,'headerTitle')]/../../button[position()=last()]",
+      document,
+      null,
+      XPathResult.FIRST_ORDERED_NODE_TYPE,
+      null
+    ).singleNodeValue;
+    element.click();
+  }
+
   React.useEffect(() => {
     console.log(JSON.stringify(annotatingImage));
   });
@@ -122,15 +133,22 @@ function AnnotatorMain(props) {
                   data={folderHierarchy}
                   hasSearch={false}
                   onClickItem={({ key, label, ...props }) => {
+                    saveElementByXpath();
                     if (props.type === 'file') {
+                      let annotJsonPath =
+                        path.dirname(props.path) + '/annotations.json';
+
+                      let annotJson = JSON.parse(
+                        fs.readFileSync(annotJsonPath)
+                      );
                       var fileURL = url.pathToFileURL(props.path).toString();
-                      console.log('Selected path : ' + fileURL);
+                      console.log('New Selected path : ' + fileURL);
                       // setSelectedImageURL(fileURL);
                       setAnnotatingImage([
                         {
                           src: fileURL,
                           name: getImageVisibleName(props.path),
-                          regions: [],
+                          regions: annotJson.regions,
                         },
                       ]);
 

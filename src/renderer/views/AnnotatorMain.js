@@ -12,6 +12,9 @@ function AnnotatorMain(props) {
   const [rootFolderPath, setRootFolderPath] = React.useState(
     '/Users/cdushmantha/Documents/code/github/LeopardDiary-PublicWeb/leopard-diary-webapp/src/assets/img/identified-leopards/YALA_NP'
   );
+  const [destFolderPath, setDestFolderPath] = React.useState(
+    '/Users/cdushmantha/Downloads/annots'
+  );
 
   const [annotatorKey, setAnnotatorKey] = React.useState(uuidv4());
 
@@ -23,6 +26,7 @@ function AnnotatorMain(props) {
 
   const [annotatingImage, setAnnotatingImage] = React.useState([
     {
+      key: uuidv4(),
       src: url.pathToFileURL('src/renderer/img/placeholder.jpeg').toString(),
       name: 'Image 1',
       regions: [],
@@ -57,9 +61,14 @@ function AnnotatorMain(props) {
     return buildArr;
   }
 
-  function handleChange(event) {
-    console.log('Folder path : ' + rootFolderPath);
+  function handleRootChange(event) {
+    console.log('Root Folder path : ' + rootFolderPath);
     setRootFolderPath(event.target.value);
+  }
+
+  function handleDestChange(event) {
+    console.log('Dest Folder path : ' + rootFolderPath);
+    setDestFolderPath(event.target.value);
   }
 
   function getDirContent() {
@@ -77,12 +86,30 @@ function AnnotatorMain(props) {
   function onSaveAnnot(data) {
     if (data.images.length > 0) {
       let imageData = data.images[0];
-      let saveFolder = path.dirname(imageData.src);
-      console.log('Saving file in : ' + saveFolder);
-      fs.writeFileSync(
-        url.fileURLToPath(saveFolder + '/annotations.json'),
-        JSON.stringify(imageData)
-      );
+
+      // if no regions why save?
+      if (imageData.regions.length < 1) {
+        return;
+      }
+      // let saveFolder = path.dirname(imageData.src);
+
+      let fileName = path.basename(imageData.src);
+      let fileNameWithoutExt = fileName.split('.').slice(0, -1).join('.');
+      let folderName = path.basename(path.dirname(imageData.src));
+      let annotJsonPath =
+        destFolderPath +
+        '/' +
+        folderName +
+        '/' +
+        (fileNameWithoutExt + '_annotations.json');
+
+      console.log('Saving file in : ' + annotJsonPath);
+
+      fs.mkdirSync(path.dirname(annotJsonPath), { recursive: true }, (err) => {
+        if (err) throw err;
+      });
+
+      fs.writeFileSync(annotJsonPath, JSON.stringify(imageData));
     }
   }
 
@@ -95,6 +122,47 @@ function AnnotatorMain(props) {
       null
     ).singleNodeValue;
     element.click();
+  }
+
+  function onSelectionChange({ key, label, ...props }) {
+    saveElementByXpath();
+    if (props.type === 'file') {
+      let fileName = path.basename(props.path);
+      let fileNameWithoutExt = fileName.split('.').slice(0, -1).join('.');
+      let folderName = path.basename(path.dirname(props.path));
+
+      // read existing annots
+      let annotRegions = [];
+
+      let annotJsonPath =
+        destFolderPath +
+        '/' +
+        folderName +
+        '/' +
+        (fileNameWithoutExt + '_annotations.json');
+
+      console.log('Check annot file in path : ' + annotJsonPath);
+      console.log('Annot File Exists? : ' + fs.existsSync(annotJsonPath));
+
+      if (fs.existsSync(annotJsonPath)) {
+        annotRegions = JSON.parse(fs.readFileSync(annotJsonPath)).regions;
+        //console.log(annotRegions);
+      }
+
+      var fileURL = url.pathToFileURL(props.path).toString();
+      console.log('New Selected path : ' + fileURL);
+      // setSelectedImageURL(fileURL);
+      setAnnotatingImage([
+        {
+          key: uuidv4(),
+          src: fileURL,
+          name: getImageVisibleName(props.path),
+          regions: annotRegions,
+        },
+      ]);
+
+      setAnnotatorKey(uuidv4());
+    }
   }
 
   React.useEffect(() => {
@@ -119,8 +187,17 @@ function AnnotatorMain(props) {
                   fullWidth
                   label="Root Folder Path"
                   variant="standard"
-                  onChange={(e) => handleChange(e)}
+                  onChange={(e) => handleRootChange(e)}
                   value={rootFolderPath}
+                />
+              </div>
+              <div>
+                <TextField
+                  fullWidth
+                  label="Destination Folder Path"
+                  variant="standard"
+                  onChange={(e) => handleDestChange(e)}
+                  value={destFolderPath}
                 />
               </div>
               <div>
@@ -132,29 +209,39 @@ function AnnotatorMain(props) {
                 <TreeMenu
                   data={folderHierarchy}
                   hasSearch={false}
-                  onClickItem={({ key, label, ...props }) => {
-                    saveElementByXpath();
-                    if (props.type === 'file') {
-                      let annotJsonPath =
-                        path.dirname(props.path) + '/annotations.json';
+                  onClickItem={onSelectionChange}
+                  // onClickItem={({ key, label, ...props }) => {
+                  //   saveElementByXpath();
+                  //   if (props.type === 'file') {
+                  //     // read existing annots
+                  //     let annotRegions = [];
+                  //     let annotJsonPath = path.dirname(
+                  //       props.path + '/' + props.label + '_annotations.json'
+                  //     );
+                  //     console.log(
+                  //       'Annot File Exists? : ' + fs.existsSync(annotJsonPath)
+                  //     );
+                  //     if (fs.existsSync(annotJsonPath)) {
+                  //       annotRegions = JSON.parse(
+                  //         fs.readFileSync(annotJsonPath)
+                  //       ).regions;
+                  //       console.log(annotRegions);
+                  //     }
 
-                      let annotJson = JSON.parse(
-                        fs.readFileSync(annotJsonPath)
-                      );
-                      var fileURL = url.pathToFileURL(props.path).toString();
-                      console.log('New Selected path : ' + fileURL);
-                      // setSelectedImageURL(fileURL);
-                      setAnnotatingImage([
-                        {
-                          src: fileURL,
-                          name: getImageVisibleName(props.path),
-                          regions: annotJson.regions,
-                        },
-                      ]);
+                  //     var fileURL = url.pathToFileURL(props.path).toString();
+                  //     console.log('New Selected path : ' + fileURL);
+                  //     // setSelectedImageURL(fileURL);
+                  //     setAnnotatingImage([
+                  //       {
+                  //         src: fileURL,
+                  //         name: getImageVisibleName(props.path),
+                  //         regions: annotRegions,
+                  //       },
+                  //     ]);
 
-                      setAnnotatorKey(uuidv4());
-                    }
-                  }}
+                  //     setAnnotatorKey(uuidv4());
+                  //   }
+                  // }}
                 />
               </div>
             </Box>

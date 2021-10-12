@@ -251,7 +251,7 @@ function AnnotatorMain(props) {
               key={annotatorKey}
               labelImages
               className="annot-container"
-              regionClsList={['front', 'left', 'right']}
+              regionClsList={['front', 'left', 'right', 'head']}
               // regionTagList={['front', 'left', 'right']}
               images={annotatingImage}
               enabledTools={['select', 'create-box', 'create-polygon']}
